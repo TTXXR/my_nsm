@@ -66,7 +66,7 @@ class Expert(nn.Module):
         x = c * x
         return x.sum(dim=1)
 
-    def save_network(self, expert_index, save_path):
+    def save_network(self, expert_index, save_path, e):
         """
         save expert weight and bias for unity playing
 
@@ -77,7 +77,7 @@ class Expert(nn.Module):
         for i in range(self.layer_nums):
             for j in range(self.expert_nums):
                 self.W[i][j, :, :].cpu().detach().numpy().tofile(
-                    os.path.join(save_path, 'wc%0i%0i%0i_w.bin' % (expert_index, i, j)))
+                    os.path.join(save_path, str(e)+'wc%0i%0i%0i_w.bin' % (expert_index, i, j)))
                 self.B[i][j, :, :].cpu().detach().numpy().tofile(
-                    os.path.join(save_path, 'wc%0i%0i%0i_b.bin' % (expert_index, i, j))
+                    os.path.join(save_path, str(e)+'wc%0i%0i%0i_b.bin' % (expert_index, i, j))
                 )

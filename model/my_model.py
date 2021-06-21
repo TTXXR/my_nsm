@@ -78,9 +78,9 @@ class MyModel(object):
         params_list = []
         for e in self.encoders:
             params_list.append({'params': e.parameters()})
+        params_list.append({'params': gating.parameters()})
         for e in self.experts:
             params_list.append({'params': e.parameters()})
-        params_list.append({'params': gating.parameters()})
         self.lr = lr
         self.optimizer = optim.AdamW(params_list,
                                      lr=self.lr)
@@ -155,20 +155,20 @@ class MyModel(object):
 
                 loss.backward()
                 self.optimizer.step()
-            if e % 10 == 0:
+            if e % 30 == 0:
                 # save param for unity
                 for i in range(self.encoder_nums):
-                    self.encoders[i].module.save_network(i, self.save_path)
-                self.gating.module.save_network(-1, self.save_path)
+                    self.encoders[i].module.save_network(i, self.save_path, e)
+                self.gating.module.save_network(-1, self.save_path, e)
                 for i in range(self.expert_nums):
-                    self.experts[i].module.save_network(i, self.save_path)
+                    self.experts[i].module.save_network(i, self.save_path, e)
                 # save model for load weights
                 for i in range(self.encoder_nums):
-                    torch.save(self.encoders[i].state_dict(), os.path.join(self.save_path, 'encoder%0i.pth' % i))
-                torch.save(self.gating.state_dict(), os.path.join(self.save_path, 'gating.pth'))
+                    torch.save(self.encoders[i].state_dict(), os.path.join(self.save_path, str(e)+'encoder%0i.pth' % i))
+                torch.save(self.gating.state_dict(), os.path.join(self.save_path, str(e)+'gating.pth'))
                 for i in range(self.expert_nums):
-                    torch.save(self.experts[i].state_dict(), os.path.join(self.save_path, 'expert%0i.pth' % i))
-                torch.save(self.optimizer.state_dict(), os.path.join(self.save_path, 'optimizer.ptm'))
+                    torch.save(self.experts[i].state_dict(), os.path.join(self.save_path, str(e)+'expert%0i.pth' % i))
+                torch.save(self.optimizer.state_dict(), os.path.join(self.save_path, str(e)+'optimizer.ptm'))
 
             avg_loss = np.asarray(loss_list).mean()
             train_loss.append(avg_loss)
@@ -207,12 +207,19 @@ class MyModel(object):
             status = torch.cat(tuple(status_outputs), 1)
 
             # Gating Network
-            expert_first = self.experts[0]
+            expert_first = self.gating
             weight_blend = expert_first(weight_blend_first, x[:, self.segmentation[-2]:self.segmentation[-1]])
 
             # Motion Network
-            expert_last = self.experts[-1]
-            output = expert_last(weight_blend, status)
+            # expert_last = self.experts[-1]
+            # output = expert_last(weight_blend, status)
+            outputs = torch.zeros(batch_nums, 618).cuda()
+            for index, net in enumerate(self.experts):
+                expert_out = net(status)
+                expert_out = expert_out * weight_blend[:, index].reshape((62, 1))
+                outputs = outputs + expert_out
+
+            output = outputs
 
             # loss
             if torch.cuda.is_available():

@@ -25,8 +25,8 @@ my_conf = {
         'expert_dims': [[650, 512, 512, 10],
                         [1664, 512, 512, 618]],
         'expert_activations': [['elu', 'elu', 'softmax'],
-                               ['elu', 'elu', 'elu']],
+                               ['elu', 'elu', None]],
         'expert_dropout': 0.3,
-        'lr': 0.001,
+        'lr': 0.0001,
     },
 }
