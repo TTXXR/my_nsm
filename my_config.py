@@ -1,11 +1,9 @@
 my_conf = {
-    "save_path": "/home/rr/NSM/trained",
-    "load_path": "/home/rr/NSM/trained",
+    "save_path": "C:/Users/rr/Desktop/documents/Export/trained",
+    "load_path": "C:/Users/rr/Desktop/documents/Export/trained",
     "CUDA_VISIBLE_DEVICES": "0",
     "CUDA_USE": [0],
-    "data": {
-        'dataset_path': "/home/rr/NSM/Export",
-    },
+    "data": "C:/Users/rr/Desktop/documents/data",
     "model": {
         'model_name': 'NSM',
         'epoch': 150,

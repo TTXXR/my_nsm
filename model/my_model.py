@@ -140,7 +140,7 @@ class MyModel(object):
                 outputs = torch.zeros(batch_nums, 618).cuda()
                 for index, net in enumerate(self.experts):
                     expert_out = net(status)
-                    expert_out = expert_out * weight_blend[:, index].reshape((62, 1))
+                    expert_out = expert_out * weight_blend[:, index].unsqueeze(-1)
                     outputs = outputs + expert_out
                     # outputs.append(expert_out)
 
@@ -216,7 +216,7 @@ class MyModel(object):
             outputs = torch.zeros(batch_nums, 618).cuda()
             for index, net in enumerate(self.experts):
                 expert_out = net(status)
-                expert_out = expert_out * weight_blend[:, index].reshape((62, 1))
+                expert_out = expert_out * weight_blend[:, index].unsqueeze(-1)
                 outputs = outputs + expert_out
 
             output = outputs
