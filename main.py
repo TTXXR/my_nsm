@@ -1,7 +1,6 @@
 import argparse
 
 from config import conf
-from my_config import my_conf
 from model.initialization import initialization
 
 # parser = argparse.ArgumentParser(description='Train')
@@ -11,7 +10,7 @@ from model.initialization import initialization
 # opt = parser.parse_args()
 
 if __name__ == '__main__':
-    model = initialization(my_conf, train=True)
+    model = initialization(conf, train=True)
     # if opt.test:
     #     print("Testing START")
     #     model.test()

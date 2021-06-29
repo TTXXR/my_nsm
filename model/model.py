@@ -10,7 +10,7 @@ import torch.utils
 import torch.utils.cpp_extension
 import torch.utils.data as tordata
 
-from .network import Expert, Encoder
+from .mlp_network import Encoder, Decoder
 
 # Check GPU available
 print('CUDA_HOME:', torch.utils.cpp_extension.CUDA_HOME)
@@ -21,60 +21,46 @@ print('cuda is available:', torch.cuda.is_available())
 class Model(object):
     def __init__(self,
                  # For Model base information
-                 model_name, epoch, batch_size, segmentation, save_path, load_path,
+                 model_name, epoch, batch_size, save_path, load_path,
                  # For Date information
                  train_source, test_source,
-                 # For encoder network information
-                 encoder_nums, encoder_dims, encoder_activations, encoder_dropout,
-                 # For expert network information
-                 expert_components, expert_dims, expert_activations, expert_dropout,
+                 # For encoder mlp_network information
+                 encoder_dim, mlp_ratio, encoder_dropout,
+                 # For decoder mlp_network information
+                 decoder_dim, decoder_dropout,
                  # optim param
                  lr,
                  ):
         self.model_name = model_name
         self.epoch = epoch
         self.batch_size = batch_size
-        self.segmentation = segmentation
         self.save_path = save_path
         self.load_path = load_path
 
         self.train_source = train_source
         self.test_source = test_source
 
-        # build encoder network
-        self.encoder_nums = encoder_nums
-        self.encoders = []
-        for i in range(encoder_nums):
-            encoder = Encoder(encoder_dims[i], encoder_activations[i], encoder_dropout)
-            if torch.cuda.is_available():
-                encoder.cuda()
-            encoder = nn.DataParallel(encoder)
-            self.encoders.append(encoder)
+        self.encoder_dim = encoder_dim
+        self.mlp_ratio = mlp_ratio
+        self.encoder_dropout = encoder_dropout
+        self.decoder_dim = decoder_dim
+        self.decoder_dropout = decoder_dropout
 
-        # build expert network
-        self.expert_nums = len(expert_components)
-        self.experts = []
-        for i in range(self.expert_nums):
-            expert = Expert(expert_components[i], expert_dims[i], expert_activations[i], expert_dropout)
-            if torch.cuda.is_available():
-                expert.cuda()
-            expert = nn.DataParallel(expert)
-            self.experts.append(expert)
-
-        # weight blend init
-        self.weight_blend_init = torch.Tensor([1])
+        # build mlp_network
+        encoder = Encoder(self.encoder_dim, self.mlp_ratio, self.encoder_dropout)
         if torch.cuda.is_available():
-            self.weight_blend_init = self.weight_blend_init.cuda()
+            encoder = nn.DataParallel(encoder.cuda())
+        self.encoder = encoder
+
+        decoder = Decoder(self.decoder_dim, self.decoder_dropout)
+        if torch.cuda.is_available():
+            decoder = nn.DataParallel(decoder.cuda())
+        self.decoder = decoder
 
         # build optimizer
-        params_list = []
-        for e in self.encoders:
-            params_list.append({'params': e.parameters()})
-        for e in self.experts:
-            params_list.append({'params': e.parameters()})
         self.lr = lr
-        self.optimizer = optim.AdamW(params_list,
-                                     lr=self.lr)
+        self.encoder_optimizer = torch.optim.AdamW(self.encoder.parameters(), lr=self.lr)
+        self.decoder_optimizer = torch.optim.AdamW(self.decoder.parameters(), lr=self.lr)
 
         # build loss function
         self.loss_function = nn.MSELoss(reduction='mean')
@@ -83,14 +69,25 @@ class Model(object):
                             format='%(asctime)s  %(message)s',
                             filename=os.path.join(self.save_path, 'log.txt'))
 
-    def load(self):
-        print('Loading parm...')
-        for i in range(self.encoder_nums):
-            self.encoders[i].load_state_dict(torch.load(os.path.join(self.load_path, 'encoder%0i.pth' % i)))
-        for i in range(self.expert_nums):
-            self.experts[i].load_state_dict(torch.load(os.path.join(self.load_path, 'expert%0i.pth' % i)))
-        self.optimizer.load_state_dict(torch.load(os.path.join(self.load_path, 'optimizer.ptm')))
-        print('Loading param complete')
+    def up_lr(self):
+        pass
+
+    def save(self, e):
+        # Save Model
+        torch.save(self.encoder.state_dict(), os.path.join(self.save_path, str(e)+"encoder.pth"))
+        torch.save(self.decoder.state_dict(), os.path.join(self.save_path, str(e)+"decoder.pth"))
+        # Save optimizer
+        torch.save(self.encoder_optimizer.state_dict(), os.path.join(self.save_path, str(e)+"encoder_optimizer.pth"))
+        torch.save(self.decoder_optimizer.state_dict(),
+                   os.path.join(self.save_path, str(e)+"decoder_optimizer.pth"))
+
+    def load(self, e):
+        self.encoder.load_state_dict(torch.load(os.path.join(self.load_path, str(e)+'encoder.pth')))
+        self.decoder.load_state_dict(torch.load(os.path.join(self.load_path, str(e)+'decoder.pth')))
+
+        self.encoder_optimizer.load_state_dict(torch.load(os.path.join(self.load_path, str(e)+'encoder_optimizer.pth')))
+        self.decoder_optimizer.load_state_dict(
+            torch.load(os.path.join(self.load_path, str(e)+'decoder_optimizer.pth')))
 
     def train(self):
         train_loader = tordata.DataLoader(
@@ -99,36 +96,22 @@ class Model(object):
             num_workers=4,
             shuffle=True,
         )
-        for encoder in self.encoders:
-            encoder.train()
-        for expert in self.experts:
-            expert.train()
+        self.encoder.train()
+        self.decoder.train()
 
         train_loss = []
         for e in range(self.epoch):
             loss_list = []
-            if e % 50 == 0:
-                self.lr = self.lr / 10
-                for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = self.lr
+            # learning rate update
+            self.up_lr()
             for x, y in tqdm(train_loader, ncols=100):
-                batch_nums = x.size()[0]
-                weight_blend_first = self.weight_blend_init.unsqueeze(0).expand(batch_nums, 1)
-                self.optimizer.zero_grad()
-                status_outputs = []
-                for i, encoder in enumerate(self.encoders):
-                    status_output = encoder(x[:, self.segmentation[i]:self.segmentation[i + 1]])
-                    status_outputs.append(status_output)
-                status = torch.cat(tuple(status_outputs), 1)
+                self.encoder_optimizer.zero_grad()
+                self.decoder_optimizer.zero_grad()
 
-                # Gating Network
-                expert_first = self.experts[0]
-                weight_blend = expert_first(weight_blend_first, x[:, self.segmentation[-2]:self.segmentation[-1]])
-
-                # Motion Network
-                expert_last = self.experts[-1]
-                output = expert_last(weight_blend, status)
-
+                # Encoder Network
+                x = self.encoder(x)
+                # Decoder Network
+                output = self.decoder(x)
                 # loss
                 if torch.cuda.is_available():
                     y = y.cuda()
@@ -136,19 +119,11 @@ class Model(object):
                 loss_list.append(loss.item())
 
                 loss.backward()
-                self.optimizer.step()
-            if e % 10 == 0:
-                # save param for unity
-                for i in range(self.encoder_nums):
-                    self.encoders[i].module.save_network(i, self.save_path)
-                for i in range(self.expert_nums):
-                    self.experts[i].module.save_network(i, self.save_path)
-                # save model for load weights
-                for i in range(self.encoder_nums):
-                    torch.save(self.encoders[i].state_dict(), os.path.join(self.save_path, 'encoder%0i.pth' % i))
-                for i in range(self.expert_nums):
-                    torch.save(self.experts[i].state_dict(), os.path.join(self.save_path, 'expert%0i.pth' % i))
-                torch.save(self.optimizer.state_dict(), os.path.join(self.save_path, 'optimizer.ptm'))
+                self.encoder_optimizer.step()
+                self.decoder_optimizer.step()
+
+            if e % 30 == 0 and e != 0:
+                self.save(e)
 
             avg_loss = np.asarray(loss_list).mean()
             train_loss.append(avg_loss)
@@ -164,36 +139,23 @@ class Model(object):
         print('Learning Finished')
 
     def test(self):
-        self.load()
+        epoch = 30
+        self.load(epoch)
         train_loader = tordata.DataLoader(
             dataset=self.test_source,
             batch_size=self.batch_size,
             num_workers=4,
             shuffle=True,
         )
-        for encoder in self.encoders:
-            encoder.eval()
-        for expert in self.experts:
-            expert.eval()
+        self.encoder.eval()
+        self.decoder.eval()
 
         test_loss = []
         for x, y in tqdm(train_loader, ncols=100):
-            batch_nums = x.size()[0]
-            weight_blend_first = self.weight_blend_init.unsqueeze(0).expand(batch_nums, 1)
-            status_outputs = []
-            for i, encoder in enumerate(self.encoders):
-                status_output = encoder(x[:, self.segmentation[i]:self.segmentation[i + 1]])
-                status_outputs.append(status_output)
-            status = torch.cat(tuple(status_outputs), 1)
-
-            # Gating Network
-            expert_first = self.experts[0]
-            weight_blend = expert_first(weight_blend_first, x[:, self.segmentation[-2]:self.segmentation[-1]])
-
-            # Motion Network
-            expert_last = self.experts[-1]
-            output = expert_last(weight_blend, status)
-
+            # Encoder Network
+            x = self.encoder(x)
+            # Decoder Network
+            output = self.decoder(x)
             # loss
             if torch.cuda.is_available():
                 y = y.cuda()

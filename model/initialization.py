@@ -1,9 +1,6 @@
 import os
-from copy import deepcopy
-import numpy as np
 from .utils import load_data
 from .model import Model
-from .my_model import MyModel
 
 
 def initialize_model(config, train_source, test_source):
@@ -13,7 +10,7 @@ def initialize_model(config, train_source, test_source):
     model_config['load_path'] = config['load_path']
     model_config['train_source'] = train_source
     model_config['test_source'] = test_source
-    model = MyModel(**model_config)
+    model = Model(**model_config)
     print("Model initialization complete.")
     return model
 
@@ -26,6 +23,6 @@ def initialization(config, train=False, test=False):
     print("Initializing data source...")
     train_source = load_data(os.path.join(config['data'], "Train"), cache=(train or test))
     # test_source = load_data(os.path.join(config['data'], "Test"), cache=(train or test))
-    test_source=train_source
+    test_source = train_source
     print("Data initialization complete.")
     return initialize_model(config, train_source, test_source)
