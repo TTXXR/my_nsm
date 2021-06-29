@@ -19,14 +19,10 @@ class Encoder(torch.nn.Module):
         self.layer2 = nn.Sequential(nn.Dropout(encoder_dropout),
                                     nn.Linear(encoder_dims[1], encoder_dims[2]),
                                     activation_layer(encoder_activations[1]))
-        self.layer3 = nn.Sequential(nn.Dropout(encoder_dropout),
-                                    nn.Linear(encoder_dims[2], encoder_dims[3]),
-                                    activation_layer(encoder_activations[2]))
 
     def forward(self, x):
         x = self.layer1(x)
         x = self.layer2(x)
-        x = self.layer3(x)
         return x
 
     def save_network(self, encoder_index, save_path, e):

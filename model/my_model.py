@@ -116,10 +116,10 @@ class MyModel(object):
         train_loss = []
         for e in range(self.epoch):
             loss_list = []
-            if e % 50 == 0:
-                self.lr = self.lr / 10
-                for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = self.lr
+            # if e % 50 == 0:
+            #     self.lr = self.lr / 10
+            #     for param_group in self.optimizer.param_groups:
+            #         param_group['lr'] = self.lr
             for x, y in tqdm(train_loader, ncols=100):
                 batch_nums = x.size()[0]
                 self.optimizer.zero_grad()
@@ -136,13 +136,11 @@ class MyModel(object):
                 weight_blend = self.gating(weight_blend_first, x[:, self.segmentation[-2]:self.segmentation[-1]])
 
                 # Expert Network
-                # outputs = []
                 outputs = torch.zeros(batch_nums, 618).cuda()
                 for index, net in enumerate(self.experts):
                     expert_out = net(status)
                     expert_out = expert_out * weight_blend[:, index].unsqueeze(-1)
                     outputs = outputs + expert_out
-                    # outputs.append(expert_out)
 
                 # Prediction
                 output = outputs
@@ -155,7 +153,7 @@ class MyModel(object):
 
                 loss.backward()
                 self.optimizer.step()
-            if e % 30 == 0:
+            if e % 30 == 0 and e != 0:
                 # save param for unity
                 for i in range(self.encoder_nums):
                     self.encoders[i].module.save_network(i, self.save_path, e)
