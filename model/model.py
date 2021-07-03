@@ -18,6 +18,22 @@ print('torch cuda version:', torch.version.cuda)
 print('cuda is available:', torch.cuda.is_available())
 
 
+def cal_ankle_loss(index, output, y, left):
+    loss_sum = 0
+    for i in index:
+        if left:
+            x_err = output.iloc[i, 345] + output.iloc[i, 252] - y.iloc[i, 618]
+            y_err = output.iloc[i, 253] - y.iloc[i, 619]
+            z_err = output.iloc[i, 346] + output.iloc[i, 206] - y.iloc[i, 620]
+        else:
+            x_err = output.iloc[i, 345] + output.iloc[i, 204] - y.iloc[i, 621]
+            y_err = output.iloc[i, 205] - y.iloc[i, 622]
+            z_err = output.iloc[i, 346] + output.iloc[i, 206] - y.iloc[i, 623]
+        loss = (x_err**2 + y_err**2 + z_err**2)
+        loss_sum += loss
+    return loss_sum/float(len(index))
+
+
 class Model(object):
     def __init__(self,
                  # For Model base information
@@ -107,7 +123,7 @@ class Model(object):
         for e in range(self.epoch):
             loss_list = []
             # learning rate update
-            if (e+1)%30 == 0:
+            if (e+1) % 30 == 0:
                 self.up_lr()
             for x, y in tqdm(train_loader, ncols=100):
                 self.encoder_optimizer.zero_grad()
@@ -117,18 +133,22 @@ class Model(object):
                 x = self.encoder(x)
                 # Decoder Network
                 output = self.decoder(x)
-                # loss
+
                 if torch.cuda.is_available():
                     y = y.cuda()
+                # loss
                 loss = self.loss_function(output, y)
-                loss_list.append(loss.item())
 
+                # slide loss
+                index = torch.nonzero(y[:, 610])
+                left_ankle_loss = cal_ankle_loss(index, output, y, left=True)
+                right_ankle_loss = cal_ankle_loss(index, output, y, False)
+                loss = loss + left_ankle_loss + right_ankle_loss
+
+                loss_list.append(loss.item())
                 loss.backward()
                 self.encoder_optimizer.step()
                 self.decoder_optimizer.step()
-
-            if e % 30 == 0 and e != 0:
-                self.save(e)
 
             avg_loss = np.asarray(loss_list).mean()
             train_loss.append(avg_loss)
@@ -140,6 +160,11 @@ class Model(object):
             logging.info('Epoch {} : '.format(e + 1) +
                          'Training Loss = {:.9f} '.format(avg_loss) +
                          'lr = {} '.format(self.lr))
+
+            # save model
+            if e % 30 == 0 and e != 0 and avg_loss < 0.05:
+                self.save(e)
+
         torch.save(train_loss, os.path.join(self.save_path, 'trainloss.bin'))
         print('Learning Finished')
 

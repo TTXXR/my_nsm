@@ -10,9 +10,9 @@ conf = {
         'batch_size': 1200,
         'encoder_dim': 5307,
         'mlp_ratio': 4.,
-        'encoder_dropout': 0.1,
+        'encoder_dropout': 0.3,
         'decoder_dim': [5307, 4096, 2048, 1024, 618],
-        'decoder_dropout': 0.1,
-        'lr': 0.001,
+        'decoder_dropout': 0.3,
+        'lr': 0.0001,
     },
 }
