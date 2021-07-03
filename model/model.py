@@ -70,7 +70,11 @@ class Model(object):
                             filename=os.path.join(self.save_path, 'log.txt'))
 
     def up_lr(self):
-        pass
+        self.lr /= 2
+        for param_group in self.encoder_optimizer.param_groups:
+            param_group['lr'] = self.lr
+        for param_group in self.decoder_optimizer.param_groups:
+            param_group['lr'] = self.lr
 
     def save(self, e):
         # Save Model
@@ -103,7 +107,8 @@ class Model(object):
         for e in range(self.epoch):
             loss_list = []
             # learning rate update
-            self.up_lr()
+            if (e+1)%30 == 0:
+                self.up_lr()
             for x, y in tqdm(train_loader, ncols=100):
                 self.encoder_optimizer.zero_grad()
                 self.decoder_optimizer.zero_grad()
