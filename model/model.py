@@ -140,9 +140,11 @@ class Model(object):
                 loss = self.loss_function(output, y)
 
                 # slide loss
-                index = torch.nonzero(y[:, 610])
-                left_ankle_loss = cal_ankle_loss(index, output, y, left=True)
-                right_ankle_loss = cal_ankle_loss(index, output, y, False)
+                left_index = torch.nonzero(y[:, 610])
+                left_ankle_loss = cal_ankle_loss(left_index, output, y, left=True)
+                right_index = torch.nonzero(y[:, 609])
+                right_ankle_loss = cal_ankle_loss(right_index, output, y, False)
+
                 loss = loss + left_ankle_loss + right_ankle_loss
 
                 loss_list.append(loss.item())
