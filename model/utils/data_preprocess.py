@@ -31,7 +31,7 @@ def data_p(root_dir, type, out_dir):
         data = [[float(x) for x in data_str.split(' ')]]
         data = torch.tensor(data)
         if data.size(-1) == 5307 or data.size(-1) == 618:
-            data = (data - mean) / std
+            data[:618] = (data[:618] - mean) / std
             data_list.append(data)
     data = torch.cat(data_list, dim=0)
     torch.save(data, os.path.join(out_dir, type + '.pth'))

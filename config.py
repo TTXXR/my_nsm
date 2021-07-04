@@ -1,5 +1,5 @@
 conf = {
-    "save_path": "/home/ubuntu/rentianxiang/NSM/trained-tese",
+    "save_path": "/home/ubuntu/rentianxiang/NSM/trained-test",
     "load_path": "/home/ubuntu/rentianxiang/NSM/trained-test",
     "CUDA_VISIBLE_DEVICES": "0,1,2,3",
     "CUDA_USE": [0, 1, 2, 3],

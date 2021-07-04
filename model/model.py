@@ -11,6 +11,7 @@ import torch.utils.cpp_extension
 import torch.utils.data as tordata
 
 from .mlp_network import Encoder, Decoder
+from .utils.data_preprocess import get_norm
 
 # Check GPU available
 print('CUDA_HOME:', torch.utils.cpp_extension.CUDA_HOME)
@@ -20,6 +21,9 @@ print('cuda is available:', torch.cuda.is_available())
 
 def cal_ankle_loss(index, output, y, left):
     loss_sum = 0
+    mean, std = get_norm("/home/ubuntu/rentianxiang/NSM/OutputNorm.txt")
+    # anti norm
+    output[0, :618] = output[0, :618] * std + mean
     for i in index:
         if left:
             x_err = output.iloc[i, 345] + output.iloc[i, 252] - y.iloc[i, 618]
