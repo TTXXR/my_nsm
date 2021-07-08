@@ -15,9 +15,8 @@ class Encoder(nn.Module):
 
         # external attention
         self.attn_num = layer_num
-        self.attn_list = []
-        for i in range(self.attn_num):
-            self.attn_list.append(ExternalAttention(input_size=dim, hidden_size=int(dim * mlp_ratio), drop=dropout))
+        self.attn_list = [ExternalAttention(input_size=dim, hidden_size=int(dim * mlp_ratio), drop=dropout)
+                          for _ in range(self.attn_num)]
 
     def forward(self, x):
         # pure MLP
