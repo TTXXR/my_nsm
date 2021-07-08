@@ -18,42 +18,26 @@ print('CUDA_HOME:', torch.utils.cpp_extension.CUDA_HOME)
 print('torch cuda version:', torch.version.cuda)
 print('cuda is available:', torch.cuda.is_available())
 
-"""
-def cal_ankle_loss(index, output, y, mean, std, left):
-    loss_sum = 0
-    # anti normi
-    op_copy = output.clone()
-    op_copy[0, :618] = op_copy[0, :618] * std + mean
-    for i in index:
-        if left:
-            x_err = op_copy[i, 345] + op_copy[i, 252] - y[i, 618]
-            y_err = op_copy[i, 253] - y[i, 619]
-            z_err = op_copy[i, 346] + op_copy[i, 254] - y[i, 620]
-        else:
-            x_err = op_copy[i, 345] + op_copy[i, 204] - y[i, 621]
-            y_err = op_copy[i, 205] - y[i, 622]
-            z_err = op_copy[i, 346] + op_copy[i, 206] - y[i, 623]
-        loss = (x_err**2 + y_err**2 + z_err**2)
-        loss_sum += loss
-    return loss_sum/float(len(index))
-"""
-
 
 def cal_ankle_loss(loss_func, index, output, y, mean, std, left):
     op_copy = output.clone()
-    # anti normi
-    op_copy[0, :618] = op_copy[0, :618] * std + mean
+    # anti norm
+    op_copy = op_copy * std[:618] + mean[:618]
     if left:
         col1 = op_copy[index, 345] + op_copy[index, 252]
         col2 = op_copy[index, 253]
         col3 = op_copy[index, 346] + op_copy[index, 254]
-        true_ankle = y[index, [618, 619, 620]]
+        pred_ankle = torch.cat((col1, col2, col3), dim=1)
+        pred_ankle = (pred_ankle - mean[618, 619, 620]) / std[618, 619, 620]
+        true_ankle = (y[index, [618, 619, 620]] - mean[618, 619, 620]) / std[618, 619, 620]
     else:
         col1 = op_copy[index, 345] + op_copy[index, 204]
         col2 = op_copy[index, 205]
         col3 = op_copy[index, 346] + op_copy[index, 206]
-        true_ankle = y[index, [621, 622, 623]]
-    pred_ankle = torch.cat((col1, col2, col3), dim=1)
+        pred_ankle = torch.cat((col1, col2, col3), dim=1)
+        pred_ankle = (pred_ankle - mean[621, 622, 623]) / std[621, 622, 623]
+        true_ankle = (y[index, [621, 622, 623]] - mean[621, 622, 623]) / std[621, 622, 623]
+
     return loss_func(pred_ankle, true_ankle)
 
 
@@ -68,7 +52,7 @@ class Model(object):
                  # For decoder mlp_network information
                  decoder_dim, decoder_dropout,
                  # optim param
-                 lr,
+                 lr, layer_num
                  ):
         self.model_name = model_name
         self.epoch = epoch
@@ -81,16 +65,17 @@ class Model(object):
 
         self.encoder_dim = encoder_dim
         self.mlp_ratio = mlp_ratio
+        self.layer_num = layer_num
         self.encoder_dropout = encoder_dropout
         self.decoder_dim = decoder_dim
         self.decoder_dropout = decoder_dropout
 
-        mean, std = get_norm("/home/ubuntu/rentianxiang/NSM/OutputNorm.txt")
-        self.mean = mean.cuda()
-        self.std = std.cuda()
+        # mean, std = get_norm("/home/ubuntu/rentianxiang/NSM/AbsOutputNorm.txt")
+        # self.mean = mean.cuda()
+        # self.std = std.cuda()
 
         # build mlp_network
-        encoder = Encoder(self.encoder_dim, self.mlp_ratio, self.encoder_dropout)
+        encoder = Encoder(self.encoder_dim, self.mlp_ratio, self.layer_num, self.encoder_dropout)
         if torch.cuda.is_available():
             encoder = nn.DataParallel(encoder.cuda())
         self.encoder = encoder
@@ -150,7 +135,7 @@ class Model(object):
         for e in range(self.epoch):
             loss_list = []
             # learning rate update
-            if (e+1) % 30 == 0:
+            if (e+1) % 40 == 0:
                 self.up_lr()
             for x, y in tqdm(train_loader, ncols=100):
                 self.encoder_optimizer.zero_grad()
@@ -164,8 +149,9 @@ class Model(object):
                 if torch.cuda.is_available():
                     y = y.cuda()
                 # loss
-                loss = self.loss_function(output, y)
+                loss = self.loss_function(output, y[:, :618])
 
+                """
                 # slide loss
                 left_index = torch.nonzero(y[:, 610])
                 left_ankle_loss = cal_ankle_loss(self.loss_function, left_index, output, y,
@@ -173,8 +159,8 @@ class Model(object):
                 right_index = torch.nonzero(y[:, 609])
                 right_ankle_loss = cal_ankle_loss(self.loss_function, right_index, output, y,
                                                   self.mean, self.std, left=False)
-
                 loss = loss + left_ankle_loss + right_ankle_loss
+                """
 
                 loss_list.append(loss.item())
                 loss.backward()
@@ -193,14 +179,13 @@ class Model(object):
                          'lr = {} '.format(self.lr))
 
             # save model
-            if e % 30 == 0 and e != 0 and avg_loss < 0.05:
+            if e % 20 == 0 and e != 0 and avg_loss < 0.07:
                 self.save(e)
 
         torch.save(train_loss, os.path.join(self.save_path, 'trainloss.bin'))
         print('Learning Finished')
 
-    def test(self):
-        epoch = 30
+    def test(self, epoch):
         self.load(epoch)
         train_loader = tordata.DataLoader(
             dataset=self.test_source,
@@ -220,7 +205,17 @@ class Model(object):
             # loss
             if torch.cuda.is_available():
                 y = y.cuda()
-            loss = self.loss_function(output, y)
+            loss = self.loss_function(output, y[:, :618])
+            """
+            # slide loss
+            left_index = torch.nonzero(y[:, 610])
+            left_ankle_loss = cal_ankle_loss(self.loss_function, left_index, output, y,
+                                             self.mean, self.std, left=True)
+            right_index = torch.nonzero(y[:, 609])
+            right_ankle_loss = cal_ankle_loss(self.loss_function, right_index, output, y,
+                                              self.mean, self.std, left=False)
+            loss = loss + left_ankle_loss + right_ankle_loss
+            """
             test_loss.append(loss.item())
 
         avg_loss = np.asarray(test_loss).mean()

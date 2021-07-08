@@ -1,25 +1,36 @@
 import torch.nn as nn
 from .attention.gelu import GELU
+from .ExternalAttention import ExternalAttention
 
 
 class Encoder(nn.Module):
-    def __init__(self, dim, mlp_ratio, dropout, act=GELU,
-                 norm=nn.LayerNorm):  # 197 = 16**2 + 1
+    def __init__(self, dim, mlp_ratio, layer_num, dropout, act=GELU, norm=nn.LayerNorm):
         super().__init__()
 
         self.drop = nn.Dropout(dropout)
-        # FF over features
+        self.norm = norm(dim)
+
+        # pure MLP
         self.mlp1 = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio), act_layer=act, drop=dropout)
-        self.norm1 = norm(dim)
-        # FF over patches
+
+        # external attention
+        self.attn_num = layer_num
+        self.attn_list = []
+        for i in range(self.attn_num):
+            self.attn_list.append(ExternalAttention(input_size=dim, hidden_size=int(dim * mlp_ratio), drop=dropout))
 
     def forward(self, x):
-        x = x + self.drop(self.mlp1(self.norm1(x)))
+        # pure MLP
+        # x = x + self.drop(self.mlp1(self.norm(x)))
+
+        # external attention
+        for attn_layer in self.attn_list:
+            x = x + self.drop(attn_layer(self.norm(x)))
         return x
 
 
 class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features, act_layer=GELU, drop=0.1):
+    def __init__(self, in_features, hidden_features, act_layer=GELU, drop=0.3):
         super().__init__()
         self.fc1 = nn.Linear(in_features, hidden_features)
         self.act = act_layer()
