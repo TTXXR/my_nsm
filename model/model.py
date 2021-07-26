@@ -70,9 +70,9 @@ class Model(object):
         self.decoder_dim = decoder_dim
         self.decoder_dropout = decoder_dropout
 
-        # mean, std = get_norm("/home/ubuntu/rentianxiang/NSM/AbsOutputNorm.txt")
-        # self.mean = mean.cuda()
-        # self.std = std.cuda()
+        mean, std = get_norm("/home/ubuntu/rentianxiang/NSM/AbsOutputNorm.txt")
+        self.mean = mean.cuda()
+        self.std = std.cuda()
 
         # build mlp_network
         encoder = Encoder(self.encoder_dim, self.mlp_ratio, self.layer_num, self.encoder_dropout)
@@ -151,7 +151,6 @@ class Model(object):
                 # loss
                 loss = self.loss_function(output, y[:, :618])
 
-                """
                 # slide loss
                 left_index = torch.nonzero(y[:, 610])
                 left_ankle_loss = cal_ankle_loss(self.loss_function, left_index, output, y,
@@ -160,7 +159,6 @@ class Model(object):
                 right_ankle_loss = cal_ankle_loss(self.loss_function, right_index, output, y,
                                                   self.mean, self.std, left=False)
                 loss = loss + left_ankle_loss + right_ankle_loss
-                """
 
                 loss_list.append(loss.item())
                 loss.backward()
@@ -206,7 +204,6 @@ class Model(object):
             if torch.cuda.is_available():
                 y = y.cuda()
             loss = self.loss_function(output, y[:, :618])
-            """
             # slide loss
             left_index = torch.nonzero(y[:, 610])
             left_ankle_loss = cal_ankle_loss(self.loss_function, left_index, output, y,
@@ -215,7 +212,6 @@ class Model(object):
             right_ankle_loss = cal_ankle_loss(self.loss_function, right_index, output, y,
                                               self.mean, self.std, left=False)
             loss = loss + left_ankle_loss + right_ankle_loss
-            """
             test_loss.append(loss.item())
 
         avg_loss = np.asarray(test_loss).mean()

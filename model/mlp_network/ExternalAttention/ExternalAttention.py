@@ -5,7 +5,7 @@ from torch.nn import init
 
 class ExternalAttention(nn.Module):
     def __init__(self, input_size, hidden_size, drop):
-        super(ExternalAttention, self).__init__()
+        super().__init__()
         self.input_size = input_size
 
         self.Mk = nn.Linear(input_size, hidden_size, bias=False)

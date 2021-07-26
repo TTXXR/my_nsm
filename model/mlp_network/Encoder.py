@@ -20,11 +20,11 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         # pure MLP
-        # x = x + self.drop(self.mlp1(self.norm(x)))
+        x = x + self.drop(self.mlp1(self.norm(x)))
 
         # external attention
-        for attn_layer in self.attn_list:
-            x = x + self.drop(attn_layer(self.norm(x)))
+        # for attn_layer in self.attn_list:
+        #     x = x + self.drop(attn_layer(self.norm(x)))
         return x
 
 

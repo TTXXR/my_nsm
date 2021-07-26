@@ -20,7 +20,7 @@ def get_norm(file_path):
     return mean, std
 
 
-def data_p(root_dir, type, out_dir):
+def data_p(root_dir, pre, type, out_dir):
     mean, std = get_norm(os.path.join(root_dir, type + "Norm.txt"))
     data_list = []
     file = open(os.path.join(root_dir, type + ".txt"), 'r')
@@ -38,26 +38,27 @@ def data_p(root_dir, type, out_dir):
     print(out_dir + " data finish")
 
 
-def data_preprocess_two_all(train_root,  output_root):
-    train_dir = os.path.join(output_root, "Train")
-    if not os.path.exists(train_dir):
-        os.mkdir(train_dir)
-    train_input_dir = os.path.join(train_dir, "Input")
-    train_output_dir = os.path.join(train_dir, "Label")
-    if not os.path.exists(train_input_dir):
-        os.mkdir(train_input_dir)
-    if not os.path.exists(train_output_dir):
-        os.mkdir(train_output_dir)
+def data_preprocess_two_all(root, type, output_root):
+    dir = os.path.join(output_root, type)
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+    input_dir = os.path.join(dir, "Input")
+    output_dir = os.path.join(dir, "Label")
+    if not os.path.exists(input_dir):
+        os.mkdir(input_dir)
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
 
-    data_p(train_root, "Input", train_input_dir)
-    data_p(train_root, "Output", train_output_dir)
-
+    data_p(root, type+"_", "Input", input_dir)
+    data_p(root, type+"_", "Output", output_dir)
     print("Preprocess Data Complete")
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Train")
-    parser.add_argument("--train_root", type=str, help="train data file root dir")
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=str, help="data file root dir")
+    parser.add_argument("--type", type=str, help="train/test")
     parser.add_argument("--output_root", type=str, help="output file root dir")
     args = parser.parse_args()
-    data_preprocess_two_all(args.train_root, args.output_root)
+    data_preprocess_two_all(args.root, args.type, args.output_root)
