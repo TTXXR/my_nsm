@@ -8,5 +8,5 @@ ENV PATH="/opt/anaconda2/bin:${PATH}"
 ENV PATH="/usr/local/nvidia/bin:${PATH}"
 ENV PYTHONPATH="/home/gameai/animation"
 ENV BLADE_AUTO_UPGRADE="no"
-ADD . /home/alantxren/my_nsm
-WORKDIR /home/alantxren/my_nsm
+ADD . /home/gameai/animation
+WORKDIR /home/gameai/animation
